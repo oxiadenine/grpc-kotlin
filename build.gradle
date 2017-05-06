@@ -1,0 +1,90 @@
+plugins {
+    id "org.jetbrains.kotlin.jvm" version "1.1.2-2"
+    id 'com.google.protobuf' version '0.8.1'
+    id 'idea'
+    id 'application'
+}
+
+group 'com.gmail.samgarasx'
+version '1.0-SNAPSHOT'
+
+sourceCompatibility = '1.8'
+targetCompatibility = '1.8'
+
+def gRPCVersion = '1.2.0'
+
+repositories {
+    mavenCentral()
+    maven {
+        url "https://plugins.gradle.org/m2/"
+    }
+    maven {
+        url "https://dl.bintray.com/kotlin/exposed/"
+    }
+}
+
+dependencies {
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:1.1.2-2"
+    compile "org.jetbrains.kotlin:kotlin-reflect:1.1.2-2"
+
+    compile "io.grpc:grpc-netty:${gRPCVersion}"
+    compile "io.grpc:grpc-protobuf:${gRPCVersion}"
+    compile "io.grpc:grpc-stub:${gRPCVersion}"
+
+    compile 'org.postgresql:postgresql:42.0.0'
+    compile 'org.jetbrains.exposed:exposed:0.7.5'
+}
+
+sourceSets {
+    main.java.srcDirs += 'src/main/java'
+    main.kotlin.srcDirs += 'src/main/kotlin'
+
+    main.java.srcDirs += "$buildDir/generated/source/proto/main/java"
+}
+
+idea {
+    module.sourceDirs += file("$buildDir/generated/source/proto/main/java")
+}
+
+protobuf {
+    generatedFilesBaseDir = "$buildDir/generated/source/proto"
+
+    protoc {
+        artifact = 'com.google.protobuf:protoc:3.2.0'
+    }
+    plugins {
+        grpc {
+            artifact = "io.grpc:protoc-gen-grpc-java:${gRPCVersion}"
+        }
+    }
+    generateProtoTasks {
+        all()*.plugins {
+            grpc {
+                option 'enable_deprecated=false'
+                outputSubDir = 'java'
+            }
+        }
+    }
+}
+
+startScripts.enabled = false
+
+task fruitStoreServer(type: CreateStartScripts) {
+    mainClassName = 'com.gmail.samgarasx.grpckotlin.FruitStoreServer'
+    applicationName = 'fruit-store-server'
+    outputDir = new File(project.buildDir, 'tmp')
+    classpath = jar.outputs.files + project.configurations.runtime
+}
+
+task fruitStoreClient(type: CreateStartScripts) {
+    mainClassName = 'com.gmail.samgarasx.grpckotlin.FruitStoreClient'
+    applicationName = 'fruit-store-client'
+    outputDir = new File(project.buildDir, 'tmp')
+    classpath = jar.outputs.files + project.configurations.runtime
+}
+
+applicationDistribution.into('bin') {
+    from(fruitStoreServer)
+    from(fruitStoreClient)
+    fileMode = 0755
+}

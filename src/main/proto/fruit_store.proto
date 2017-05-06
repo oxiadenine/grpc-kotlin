@@ -1,0 +1,56 @@
+syntax = "proto3";
+
+option java_multiple_files = true;
+option java_package = "com.gmail.samgarasx.grpckotlin";
+option java_outer_classname = "FruitStoreProto";
+option objc_class_prefix = "FSP";
+
+package grpckotlin;
+
+service FruitStore {
+    rpc AddFruit (AddRequest) returns (AddResponse);
+    rpc SelectFruits (SelectRequest) returns (SelectResponse);
+}
+
+message Fruit {
+    int32 id = 1;
+    string no = 2;
+    string description = 3;
+}
+
+enum Status {
+    ERROR = 0;
+    SUCCESS = 1;
+}
+
+message Error {
+    int32 code = 1;
+    string message = 2;
+}
+
+message Result {
+    oneof type {
+        int32 id = 1;
+        Fruit fruit = 2;
+    }
+}
+
+message AddRequest {
+    Fruit fruit = 1;
+}
+
+message AddResponse {
+    Status status = 1;
+    Error error = 2;
+    Result result = 3;
+}
+
+message SelectRequest {
+    string query = 1;
+}
+
+message SelectResponse {
+    Status status = 1;
+    Error error = 2;
+    repeated Result result = 3;
+}

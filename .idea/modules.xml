@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/grpc-kotlin.iml" filepath="$PROJECT_DIR$/.idea/modules/grpc-kotlin.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/grpc-kotlin_main.iml" filepath="$PROJECT_DIR$/.idea/modules/grpc-kotlin_main.iml" group="grpc-kotlin" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/grpc-kotlin_test.iml" filepath="$PROJECT_DIR$/.idea/modules/grpc-kotlin_test.iml" group="grpc-kotlin" />
+    </modules>
+  </component>
+</project>
