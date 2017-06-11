@@ -8,17 +8,16 @@ import io.grpc.StatusRuntimeException
 import java.util.logging.Level
 
 
-class FruitStoreClient internal constructor(channelBuilder: ManagedChannelBuilder<*>) {
-    private val channel: ManagedChannel = channelBuilder.build()
+class FruitStoreClient(host: String, port: Int) {
+    private val channel: ManagedChannel
     private val blockingStub: FruitStoreGrpc.FruitStoreBlockingStub
-
-    constructor(host: String, port: Int) : this(ManagedChannelBuilder.forAddress(host, port)
-            // Channels are secure by default (via SSL/TLS). For the example we disable TLS to avoid
-            // needing certificates.
-            .usePlaintext(true))
+    private val logger: Logger
 
     init {
-        blockingStub = FruitStoreGrpc.newBlockingStub(channel)
+        this.channel = ManagedChannelBuilder.forAddress(host, port)
+                .usePlaintext(true).build()
+        this.blockingStub = FruitStoreGrpc.newBlockingStub(channel)
+        this.logger = Logger.getLogger(FruitStoreClient::class.java.name)
     }
 
     @Throws(InterruptedException::class)
@@ -70,34 +69,29 @@ class FruitStoreClient internal constructor(channelBuilder: ManagedChannelBuilde
         } else
             logger.warning(response.error.message)
     }
+}
 
-    companion object {
-        private val logger = Logger.getLogger(FruitStoreClient::class.java.name)
+fun main(args: Array<String>) {
+    val client = FruitStoreClient("localhost", 50051)
+    try {
+        var fruit = Fruit.newBuilder()
+                .setId(0)
+                .setNo("003")
+                .setDescription("Strawberry")
+                .build()
 
-        @Throws(Exception::class)
-        @JvmStatic fun main(args: Array<String>) {
-            val client = FruitStoreClient("localhost", 50051)
-            try {
-                var fruit = Fruit.newBuilder()
-                        .setId(0)
-                        .setNo("003")
-                        .setDescription("Strawberry")
-                        .build()
+        client.addFruit(fruit)
 
-                client.addFruit(fruit)
+        fruit = Fruit.newBuilder()
+                .setId(0)
+                .setNo("004")
+                .setDescription("Lemon")
+                .build()
 
-                fruit = Fruit.newBuilder()
-                        .setId(0)
-                        .setNo("004")
-                        .setDescription("Lemon")
-                        .build()
+        client.addFruit(fruit)
 
-                client.addFruit(fruit)
-
-                client.selectFruits("a")
-            } finally {
-                client.shutdown()
-            }
-        }
+        client.selectFruits("a")
+    } finally {
+        client.shutdown()
     }
 }

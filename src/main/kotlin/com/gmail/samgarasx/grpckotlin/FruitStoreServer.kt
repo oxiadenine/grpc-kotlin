@@ -3,26 +3,32 @@ package com.gmail.samgarasx.grpckotlin
 import io.grpc.Server
 import io.grpc.ServerBuilder
 import io.grpc.stub.StreamObserver
+import org.jetbrains.exposed.sql.Database
+import org.jetbrains.exposed.sql.SchemaUtils
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
-import org.jetbrains.exposed.sql.StdOutSqlLogger
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.select
-import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.io.IOException
 import java.sql.SQLException
 import java.util.logging.Logger
 
-class FruitStoreServer {
+class FruitStoreServer(private val port: Int) {
+    private val logger: Logger
     private var server: Server? = null
 
-    @Throws(IOException::class)
-    private fun start() {
-        val port = 50051
+    init {
         this.server = ServerBuilder.forPort(port)
                 .addService(FruitStoreImpl())
                 .build()
-                .start()
+        this.logger = Logger.getLogger(FruitStoreServer::class.java.name)
+    }
+
+    @Throws(IOException::class)
+    fun start() {
+        this.initializeDatabase()
+
+        this.server!!.start()
 
         logger.info("Server started, listening on " + port)
         Runtime.getRuntime().addShutdownHook(object : Thread() {
@@ -35,14 +41,14 @@ class FruitStoreServer {
         })
     }
 
-    private fun stop() {
+    fun stop() {
         if (this.server != null) {
             this.server!!.shutdown()
         }
     }
 
     @Throws(InterruptedException::class)
-    private fun blockUntilShutdown() {
+    fun blockUntilShutdown() {
         if (this.server != null) {
             this.server!!.awaitTermination()
         }
@@ -54,12 +60,8 @@ class FruitStoreServer {
             if (fruit!!.isInitialized) {
                 val responseBuilder = AddResponse.newBuilder()
                 try {
-                    var fruitId = 0
-
-                    transaction {
-                        logger.addLogger(StdOutSqlLogger())
-
-                        fruitId = Fruits.insert {
+                    val fruitId = transaction {
+                        return@transaction Fruits.insert {
                             it[no] = fruit.no
                             it[description] = fruit.description
                         } get Fruits.id
@@ -87,12 +89,8 @@ class FruitStoreServer {
             if (!query.isNullOrEmpty()) {
                 val responseBuilder = SelectResponse.newBuilder()
                 try {
-                    var fruits = listOf<Fruit>()
-
-                    transaction {
-                        logger.addLogger(StdOutSqlLogger())
-
-                        fruits = Fruits.select(Fruits.description like "%$query%")
+                    val fruits = transaction {
+                        return@transaction Fruits.select(Fruits.description like "%$query%")
                                 .map {
                                     Fruit.newBuilder()
                                             .setId(it[Fruits.id])
@@ -122,16 +120,22 @@ class FruitStoreServer {
         }
     }
 
-    companion object {
-        private val logger = Logger.getLogger(FruitStoreServer::class.java.name)
+    private fun initializeDatabase() {
+        val url = "jdbc:postgresql://localhost:5432/<your_database>"
+        val driver = "org.postgresql.Driver"
+        val user = "<your_user>"
+        val password = "<your_password>"
 
-        @Throws(IOException::class, InterruptedException::class)
-        @JvmStatic fun main(args: Array<String>) {
-            DatabaseConnection.connect()
+        Database.connect(url, driver, user, password)
 
-            val server = FruitStoreServer()
-            server.start()
-            server.blockUntilShutdown()
+        transaction {
+            SchemaUtils.create(Fruits)
         }
     }
+}
+
+fun main(args: Array<String>) {
+    val server = FruitStoreServer(50051)
+    server.start()
+    server.blockUntilShutdown()
 }
