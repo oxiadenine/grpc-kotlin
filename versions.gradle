@@ -1,0 +1,5 @@
+ext {
+    grpc_version = '1.14.0'
+    exposed_version = '0.10.4'
+    postgresql_version = '42.2.4'
+}

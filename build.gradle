@@ -1,38 +1,34 @@
 plugins {
-    id "org.jetbrains.kotlin.jvm" version "1.1.2-2"
-    id "com.google.protobuf" version "0.8.1"
-    id 'idea'
+    id 'org.jetbrains.kotlin.jvm' version '1.2.61'
     id 'application'
+    id 'idea'
+    id "com.google.protobuf" version "0.8.5"
 }
 
-group 'com.gmail.samgarasx'
-version '1.0-SNAPSHOT'
+group 'samgarasx'
+version '1.0.0'
 
-sourceCompatibility = '1.8'
-targetCompatibility = '1.8'
-
-def gRPCVersion = '1.3.0'
+apply from: 'versions.gradle'
 
 repositories {
     mavenCentral()
-    maven {
-        url "https://plugins.gradle.org/m2/"
-    }
-    maven {
-        url "https://dl.bintray.com/kotlin/exposed/"
-    }
+    maven { url "https://plugins.gradle.org/m2/" }
+    maven { url "https://dl.bintray.com/kotlin/exposed/" }
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:1.1.2-2"
-    compile "org.jetbrains.kotlin:kotlin-reflect:1.1.2-2"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 
-    compile "io.grpc:grpc-netty:${gRPCVersion}"
-    compile "io.grpc:grpc-protobuf:${gRPCVersion}"
-    compile "io.grpc:grpc-stub:${gRPCVersion}"
+    compile "io.grpc:grpc-netty-shaded:$grpc_version"
+    compile "io.grpc:grpc-protobuf:$grpc_version"
+    compile "io.grpc:grpc-stub:$grpc_version"
 
-    compile 'org.postgresql:postgresql:42.1.1'
-    compile 'org.jetbrains.exposed:exposed:0.8'
+    implementation "org.jetbrains.exposed:exposed:$exposed_version"
+    implementation "org.postgresql:postgresql:$postgresql_version"
+}
+
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
 }
 
 sourceSets {
@@ -49,35 +45,28 @@ idea {
 protobuf {
     generatedFilesBaseDir = "$buildDir/generated/source/proto"
 
-    protoc {
-        artifact = 'com.google.protobuf:protoc:3.2.0'
-    }
+    protoc { artifact = 'com.google.protobuf:protoc:3.5.1-1' }
+
     plugins {
-        grpc {
-            artifact = "io.grpc:protoc-gen-grpc-java:${gRPCVersion}"
-        }
+        grpc { artifact = "io.grpc:protoc-gen-grpc-java:$grpc_version" }
     }
+
     generateProtoTasks {
-        all()*.plugins {
-            grpc {
-                option 'enable_deprecated=false'
-                outputSubDir = 'java'
-            }
-        }
+        all()*.plugins { grpc {} }
     }
 }
 
 startScripts.enabled = false
 
 task fruitStoreServer(type: CreateStartScripts) {
-    mainClassName = 'com.gmail.samgarasx.grpckotlin.FruitStoreServer'
+    mainClassName = 'grpckotlin.FruitStoreServer'
     applicationName = 'fruit-store-server'
     outputDir = new File(project.buildDir, 'tmp')
     classpath = jar.outputs.files + project.configurations.runtime
 }
 
 task fruitStoreClient(type: CreateStartScripts) {
-    mainClassName = 'com.gmail.samgarasx.grpckotlin.FruitStoreClient'
+    mainClassName = 'grpckotlin.FruitStoreClient'
     applicationName = 'fruit-store-client'
     outputDir = new File(project.buildDir, 'tmp')
     classpath = jar.outputs.files + project.configurations.runtime
