@@ -1,2 +1,3 @@
-# grpc-kotlin
-An example of gRPC with Kotlin.
+## Introduction
+
+This project is a an example of [gRPC](https://grpc.io/) library with Kotlin
