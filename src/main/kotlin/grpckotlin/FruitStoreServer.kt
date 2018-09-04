@@ -1,4 +1,4 @@
-package com.gmail.samgarasx.grpckotlin
+package grpckotlin
 
 import io.grpc.Server
 import io.grpc.ServerBuilder
@@ -30,7 +30,8 @@ class FruitStoreServer(private val port: Int) {
 
         this.server!!.start()
 
-        logger.info("Server started, listening on " + port)
+        logger.info("Server started, listening on $port")
+
         Runtime.getRuntime().addShutdownHook(object : Thread() {
             override fun run() {
                 // Use stderr here since the logger may have been reset by its JVM shutdown hook.
@@ -69,7 +70,7 @@ class FruitStoreServer(private val port: Int) {
 
                     responseBuilder.status = Status.SUCCESS
                     responseBuilder.result = Result.newBuilder()
-                            .setId(fruitId)
+                            .setId(fruitId!!)
                             .build()
                 } catch (e: SQLException) {
                     responseBuilder.status = Status.ERROR

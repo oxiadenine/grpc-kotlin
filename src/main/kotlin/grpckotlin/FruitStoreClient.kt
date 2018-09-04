@@ -1,4 +1,4 @@
-package com.gmail.samgarasx.grpckotlin
+package grpckotlin
 
 import java.util.concurrent.TimeUnit
 import io.grpc.ManagedChannelBuilder
@@ -7,15 +7,12 @@ import java.util.logging.Logger
 import io.grpc.StatusRuntimeException
 import java.util.logging.Level
 
-
 class FruitStoreClient(host: String, port: Int) {
-    private val channel: ManagedChannel
+    private val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
     private val blockingStub: FruitStoreGrpc.FruitStoreBlockingStub
     private val logger: Logger
 
     init {
-        this.channel = ManagedChannelBuilder.forAddress(host, port)
-                .usePlaintext(true).build()
         this.blockingStub = FruitStoreGrpc.newBlockingStub(channel)
         this.logger = Logger.getLogger(FruitStoreClient::class.java.name)
     }

@@ -1,7 +1,7 @@
 syntax = "proto3";
 
 option java_multiple_files = true;
-option java_package = "com.gmail.samgarasx.grpckotlin";
+option java_package = "grpckotlin";
 option java_outer_classname = "FruitStoreProto";
 option objc_class_prefix = "FSP";
 
@@ -13,7 +13,7 @@ service FruitStore {
 }
 
 message Fruit {
-    int32 id = 1;
+    int64 id = 1;
     string no = 2;
     string description = 3;
 }
@@ -30,7 +30,7 @@ message Error {
 
 message Result {
     oneof type {
-        int32 id = 1;
+        int64 id = 1;
         Fruit fruit = 2;
     }
 }
