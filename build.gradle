@@ -71,3 +71,15 @@ applicationDistribution.into('bin') {
     from(fruitStoreClient)
     fileMode = 0755
 }
+
+task startServer(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+
+    main = 'grpckotlin.FruitStoreServerKt'
+}
+
+task startClient(type: JavaExec) {
+    classpath = sourceSets.main.runtimeClasspath
+
+    main = 'grpckotlin.FruitStoreClientKt'
+}
