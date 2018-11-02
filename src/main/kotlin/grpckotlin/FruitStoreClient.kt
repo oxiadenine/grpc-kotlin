@@ -1,20 +1,26 @@
 package grpckotlin
 
+import com.beust.klaxon.json
+import com.typesafe.config.ConfigFactory
 import java.util.concurrent.TimeUnit
 import io.grpc.ManagedChannelBuilder
 import io.grpc.ManagedChannel
-import java.util.logging.Logger
 import io.grpc.StatusRuntimeException
+import java.util.logging.Logger
+import java.lang.Exception
 import java.util.logging.Level
 
 class FruitStoreClient(host: String, port: Int) {
-    private val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port).usePlaintext().build()
+    private val channel: ManagedChannel = ManagedChannelBuilder.forAddress(host, port)
+            .usePlaintext()
+            .build()
+
     private val blockingStub: FruitStoreGrpc.FruitStoreBlockingStub
     private val logger: Logger
 
     init {
-        this.blockingStub = FruitStoreGrpc.newBlockingStub(channel)
-        this.logger = Logger.getLogger(FruitStoreClient::class.java.name)
+        blockingStub = FruitStoreGrpc.newBlockingStub(channel)
+        logger = Logger.getLogger(FruitStoreClient::class.java.name)
     }
 
     @Throws(InterruptedException::class)
@@ -22,73 +28,193 @@ class FruitStoreClient(host: String, port: Int) {
         channel.shutdown().awaitTermination(5, TimeUnit.SECONDS)
     }
 
-    fun addFruit(fruit: Fruit) {
-        logger.info("Will try to add fruit with description=${fruit.description} ...")
+    fun allFruits() {
+        val request = AllFruitsRequest.newBuilder().build()
 
-        val request = AddRequest.newBuilder()
+        val response = blockingStub.allFruits(request)
+
+        val jsonResponse = if (response.status == Status.SUCCESS) {
+            json {
+                obj(
+                        "ok" to true,
+                        "data" to array(response.dataList.map {
+                            obj(
+                                    "id" to it.id,
+                                    "no" to it.no,
+                                    "description" to it.description
+                            )
+                        })
+                )
+            }
+        } else {
+            json {
+                obj(
+                        "ok" to false,
+                        "error" to response.error
+                )
+            }
+        }
+
+        logger.info(jsonResponse.toJsonString(true))
+    }
+
+    fun oneFruit() {
+        val fruitId: Long = 1
+
+        val request = OneFruitRequest.newBuilder()
+                .setId(fruitId)
+                .build()
+
+        val response = blockingStub.oneFruit(request)
+
+        val jsonResponse = if (response.status == Status.SUCCESS) {
+            json {
+                obj(
+                        "ok" to true,
+                        "data" to response.data.let {
+                            obj(
+                                    "id" to it.id,
+                                    "no" to it.no,
+                                    "description" to it.description
+                            )
+                        }
+                )
+            }
+        } else {
+            json {
+                obj(
+                        "ok" to false,
+                        "error" to response.error
+                )
+            }
+        }
+
+        logger.info(jsonResponse.toJsonString(true))
+    }
+
+    fun newFruit() {
+        val fruit = Fruit.newBuilder()
+                .setNo("04")
+                .setDescription("Mango")
+                .build()
+
+        val request = NewFruitRequest.newBuilder()
                 .setFruit(fruit)
                 .build()
 
-        val response: AddResponse
-        try {
-            response = blockingStub.addFruit(request)
-        } catch (e: StatusRuntimeException) {
-            logger.log(Level.WARNING, "RPC failed: {0}", e.status)
-            return
+        val response = blockingStub.newFruit(request)
+
+        val jsonResponse = if (response.status == Status.SUCCESS) {
+            json {
+                obj(
+                        "ok" to true,
+                        "data" to response.data.let {
+                            obj(
+                                    "id" to it.id,
+                                    "no" to it.no,
+                                    "description" to it.description
+                            )
+                        }
+                )
+            }
+        } else {
+            json {
+                obj(
+                        "ok" to false,
+                        "error" to response.error
+                )
+            }
         }
 
-        if (response.status == Status.SUCCESS)
-            logger.info("Fruit added with id=${response.result.id}")
-        else
-            logger.warning(response.error.message)
+        logger.info(jsonResponse.toJsonString(true))
     }
 
-    fun selectFruits(query: String) {
-        logger.info("Will try to select fruits with description=$query ...")
-
-        val request = SelectRequest.newBuilder()
-                .setQuery(query)
+    fun editFruit() {
+        val fruit = Fruit.newBuilder()
+                .setId(13)
+                .setNo("04")
+                .setDescription("Pineapple")
                 .build()
 
-        val response: SelectResponse
-        try {
-            response = blockingStub.selectFruits(request)
-        } catch (e: StatusRuntimeException) {
-            logger.log(Level.WARNING, "RPC failed: {0}", e.status)
-            return
+        val request = EditFruitRequest.newBuilder()
+                .setFruit(fruit)
+                .build()
+
+        val response = blockingStub.editFruit(request)
+
+        val jsonResponse = if (response.status == Status.SUCCESS) {
+            json {
+                obj(
+                        "ok" to true,
+                        "data" to response.data.let {
+                            obj(
+                                    "id" to it.id,
+                                    "no" to it.no,
+                                    "description" to it.description
+                            )
+                        }
+                )
+            }
+        } else {
+            json {
+                obj(
+                        "ok" to false,
+                        "error" to response.error
+                )
+            }
         }
 
-        if (response.status == Status.SUCCESS) {
-            logger.info("Selected fruits:")
-            response.resultList.forEach {
-                logger.info("Fruit with description=${it.fruit.description}")
+        logger.info(jsonResponse.toJsonString(true))
+    }
+
+    fun deleteFruit() {
+        val fruitId: Long = 13
+
+        val request = DeleteFruitRequest.newBuilder()
+                .setId(fruitId)
+                .build()
+
+        val response = blockingStub.deleteFruit(request)
+
+        val jsonResponse = if (response.status == Status.SUCCESS) {
+            json {
+                obj(
+                        "ok" to true,
+                        "data" to response.data.let {
+                            obj(
+                                    "id" to it.id,
+                                    "no" to it.no,
+                                    "description" to it.description
+                            )
+                        }
+                )
             }
-        } else
-            logger.warning(response.error.message)
+        } else {
+            json {
+                obj(
+                        "ok" to false,
+                        "error" to response.error
+                )
+            }
+        }
+
+        logger.info(jsonResponse.toJsonString(true))
     }
 }
 
 fun main(args: Array<String>) {
-    val client = FruitStoreClient("localhost", 50051)
-    try {
-        var fruit = Fruit.newBuilder()
-                .setId(0)
-                .setNo("003")
-                .setDescription("Strawberry")
-                .build()
+    val config = ConfigFactory.load()
 
-        client.addFruit(fruit)
+    val host = config.getString("grpc.deployment.host")
+    val port = config.getInt("grpc.deployment.port")
 
-        fruit = Fruit.newBuilder()
-                .setId(0)
-                .setNo("004")
-                .setDescription("Lemon")
-                .build()
+    val client = FruitStoreClient(host, port)
 
-        client.addFruit(fruit)
+    client.allFruits()
+    client.oneFruit()
+    client.newFruit()
+    client.editFruit()
+    client.deleteFruit()
 
-        client.selectFruits("a")
-    } finally {
-        client.shutdown()
-    }
+    client.shutdown()
 }

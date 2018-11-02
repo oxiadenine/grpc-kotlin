@@ -23,21 +23,19 @@ dependencies {
     implementation "io.grpc:grpc-protobuf:$grpc_version"
     implementation "io.grpc:grpc-stub:$grpc_version"
 
+    implementation "com.typesafe:config:$typesafe_config_version"
+    implementation "com.beust:klaxon:$klaxon_version"
     implementation "org.jetbrains.exposed:exposed:$exposed_version"
     implementation "org.postgresql:postgresql:$postgresql_version"
     implementation "ch.qos.logback:logback-classic:$logback_version"
-}
-
-compileKotlin {
-    kotlinOptions.jvmTarget = "1.8"
 }
 
 sourceSets {
     main.java.srcDirs += "$buildDir/generated/source/proto/main/java"
 }
 
-idea {
-    module.sourceDirs += file("$buildDir/generated/source/proto/main")
+compileKotlin {
+    kotlinOptions.jvmTarget = "1.8"
 }
 
 protobuf {

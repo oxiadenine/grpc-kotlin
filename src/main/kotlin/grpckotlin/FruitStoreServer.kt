@@ -1,142 +1,221 @@
 package grpckotlin
 
+import com.typesafe.config.Config
+import com.typesafe.config.ConfigFactory
+import grpckotlin.entities.FruitEntity
+import grpckotlin.entities.Fruits
 import io.grpc.Server
 import io.grpc.ServerBuilder
 import io.grpc.stub.StreamObserver
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.like
-import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.select
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.io.IOException
-import java.sql.SQLException
 import java.util.logging.Logger
 
-class FruitStoreServer(private val port: Int) {
+class FruitStoreServer(private val config: Config) {
     private val logger: Logger
-    private var server: Server? = null
+    private val server: Server
 
     init {
-        this.server = ServerBuilder.forPort(port)
+        val port = this.config.getInt("grpc.deployment.port")
+
+        server = ServerBuilder.forPort(port)
                 .addService(FruitStoreImpl())
                 .build()
-        this.logger = Logger.getLogger(FruitStoreServer::class.java.name)
+        logger = Logger.getLogger(FruitStoreServer::class.java.name)
     }
 
     @Throws(IOException::class)
     fun start() {
-        this.initializeDatabase()
+        val databaseUrl = this.config.getString("grpc.database.url")
+        val databaseDriver = this.config.getString("grpc.database.driver")
+        val databaseUser = this.config.getString("grpc.database.user")
+        val databasePassword = this.config.getString("grpc.database.password")
 
-        this.server!!.start()
+        Database.connect(databaseUrl, databaseDriver, databaseUser, databasePassword)
 
-        logger.info("Server started, listening on $port")
+        transaction {
+            SchemaUtils.create(Fruits)
+        }
+
+        server.start()
+
+        logger.info("Server started, listening on ${this.server.port}")
 
         Runtime.getRuntime().addShutdownHook(object : Thread() {
             override fun run() {
                 // Use stderr here since the logger may have been reset by its JVM shutdown hook.
                 System.err.println("*** shutting down gRPC server since JVM is shutting down")
+
                 this@FruitStoreServer.stop()
+
                 System.err.println("*** server shut down")
             }
         })
     }
 
     fun stop() {
-        if (this.server != null) {
-            this.server!!.shutdown()
-        }
+        this.server.shutdown()
     }
 
     @Throws(InterruptedException::class)
     fun blockUntilShutdown() {
-        if (this.server != null) {
-            this.server!!.awaitTermination()
-        }
+        server.awaitTermination()
     }
 
     internal class FruitStoreImpl : FruitStoreGrpc.FruitStoreImplBase() {
-        override fun addFruit(request: AddRequest?, responseObserver: StreamObserver<AddResponse>?) {
-            val fruit = request?.fruit
-            if (fruit!!.isInitialized) {
-                val responseBuilder = AddResponse.newBuilder()
-                try {
-                    val fruitId = transaction {
-                        return@transaction Fruits.insert {
-                            it[no] = fruit.no
-                            it[description] = fruit.description
-                        } get Fruits.id
-                    }
-
-                    responseBuilder.status = Status.SUCCESS
-                    responseBuilder.result = Result.newBuilder()
-                            .setId(fruitId!!)
-                            .build()
-                } catch (e: SQLException) {
-                    responseBuilder.status = Status.ERROR
-                    responseBuilder.error = responseBuilder.error.toBuilder()
-                            .setCode(e.errorCode)
-                            .setMessage(e.message)
-                            .build()
-                } finally {
-                    responseObserver?.onNext(responseBuilder.build())
-                    responseObserver?.onCompleted()
-                }
+        override fun allFruits(request: AllFruitsRequest?, responseObserver: StreamObserver<AllFruitsResponse>?) {
+            val fruits = transaction {
+                return@transaction FruitEntity.all().map {
+                    Fruit.newBuilder().apply {
+                        id = it.id.value
+                        no = it.no
+                        description = it.description
+                    }.build()
+                }.toList()
             }
+
+            val responseBuilder = AllFruitsResponse.newBuilder()
+
+            responseBuilder.status = Status.SUCCESS
+            responseBuilder.addAllData(fruits)
+
+            responseObserver?.onNext(responseBuilder.build())
+            responseObserver?.onCompleted()
         }
 
-        override fun selectFruits(request: SelectRequest?, responseObserver: StreamObserver<SelectResponse>?) {
-            val query = request?.query
-            if (!query.isNullOrEmpty()) {
-                val responseBuilder = SelectResponse.newBuilder()
-                try {
-                    val fruits = transaction {
-                        return@transaction Fruits.select(Fruits.description like "%$query%")
-                                .map {
-                                    Fruit.newBuilder()
-                                            .setId(it[Fruits.id])
-                                            .setNo(it[Fruits.no])
-                                            .setDescription(it[Fruits.description])
-                                            .build()
-                                }
-                                .toList()
-                    }
+        override fun oneFruit(request: OneFruitRequest?, responseObserver: StreamObserver<OneFruitResponse>?) {
+            val fruitId = request?.id!!
 
-                    responseBuilder.status = Status.SUCCESS
-                    fruits.forEach {
-                        val result = Result.newBuilder().setFruit(it).build()
-                        responseBuilder.addResult(result)
-                    }
-                } catch (e: SQLException) {
-                    responseBuilder.status = Status.ERROR
-                    responseBuilder.error = responseBuilder.error.toBuilder()
-                            .setCode(e.errorCode)
-                            .setMessage(e.message)
-                            .build()
-                } finally {
-                    responseObserver?.onNext(responseBuilder.build())
-                    responseObserver?.onCompleted()
-                }
+            val fruitEntity = transaction {
+                return@transaction FruitEntity.findById(fruitId)
             }
+
+            val responseBuilder = OneFruitResponse.newBuilder()
+
+            if (fruitEntity != null) {
+                val fruit = Fruit.newBuilder().apply {
+                    id = fruitEntity.id.value
+                    no = fruitEntity.no
+                    description = fruitEntity.description
+                }.build()
+
+                responseBuilder.status = Status.SUCCESS
+                responseBuilder.data = fruit
+            } else {
+                responseBuilder.status = Status.ERROR
+                responseBuilder.error = "Fruit does not exists"
+            }
+
+            responseObserver?.onNext(responseBuilder.build())
+            responseObserver?.onCompleted()
         }
-    }
 
-    private fun initializeDatabase() {
-        val url = "jdbc:postgresql://localhost:5432/<your_database>"
-        val driver = "org.postgresql.Driver"
-        val user = "<your_user>"
-        val password = "<your_password>"
+        override fun newFruit(request: NewFruitRequest?, responseObserver: StreamObserver<NewFruitResponse>?) {
+            var fruit = request?.fruit!!
 
-        Database.connect(url, driver, user, password)
+            var fruitEntity = transaction {
+                return@transaction FruitEntity.find { Fruits.no eq fruit.no }
+                        .toList()
+                        .singleOrNull()
+            }
 
-        transaction {
-            SchemaUtils.create(Fruits)
+            val responseBuilder = NewFruitResponse.newBuilder()
+
+            if (fruitEntity == null) {
+                fruitEntity = transaction {
+                    return@transaction FruitEntity.new {
+                        no = fruit.no
+                        description = fruit.description
+                    }
+                }
+
+                fruit = Fruit.newBuilder().apply {
+                    id = fruitEntity.id.value
+                    no = fruitEntity.no
+                    description = fruitEntity.description
+                }.build()
+
+                responseBuilder.status = Status.SUCCESS
+                responseBuilder.data = fruit
+            } else {
+                responseBuilder.status = Status.ERROR
+                responseBuilder.error = "Fruit already exists"
+            }
+
+            responseObserver?.onNext(responseBuilder.build())
+            responseObserver?.onCompleted()
+        }
+
+        override fun editFruit(request: EditFruitRequest?, responseObserver: StreamObserver<EditFruitResponse>?) {
+            var fruit = request?.fruit!!
+
+            val fruitEntity = transaction {
+                return@transaction FruitEntity.findById(fruit.id)
+            }
+
+            val responseBuilder = EditFruitResponse.newBuilder()
+
+            if (fruitEntity != null) {
+                transaction {
+                    fruitEntity.no = fruit.no
+                    fruitEntity.description = fruit.description
+                }
+
+                fruit = Fruit.newBuilder().apply {
+                    id = fruitEntity.id.value
+                    no = fruitEntity.no
+                    description = fruitEntity.description
+                }.build()
+
+                responseBuilder.status = Status.SUCCESS
+                responseBuilder.data = fruit
+            } else {
+                responseBuilder.status = Status.ERROR
+                responseBuilder.error = "Fruit does not exists"
+            }
+
+            responseObserver?.onNext(responseBuilder.build())
+            responseObserver?.onCompleted()
+        }
+
+        override fun deleteFruit(request: DeleteFruitRequest?, responseObserver: StreamObserver<DeleteFruitResponse>?) {
+            val fruitId = request?.id!!
+
+            val fruitEntity = transaction {
+                return@transaction FruitEntity.findById(fruitId)
+            }
+
+            val responseBuilder = DeleteFruitResponse.newBuilder()
+
+            if (fruitEntity != null) {
+                transaction {
+                    fruitEntity.delete()
+                }
+
+                val fruit = Fruit.newBuilder().apply {
+                    id = fruitEntity.id.value
+                    no = fruitEntity.no
+                    description = fruitEntity.description
+                }.build()
+
+                responseBuilder.status = Status.SUCCESS
+                responseBuilder.data = fruit
+            } else {
+                responseBuilder.status = Status.ERROR
+                responseBuilder.error = "Fruit does not exists"
+            }
+
+            responseObserver?.onNext(responseBuilder.build())
+            responseObserver?.onCompleted()
         }
     }
 }
 
 fun main(args: Array<String>) {
-    val server = FruitStoreServer(50051)
+    val server = FruitStoreServer(ConfigFactory.load())
+
     server.start()
     server.blockUntilShutdown()
 }
